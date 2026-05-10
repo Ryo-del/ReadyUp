@@ -45,5 +45,13 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string) (*model.User, e
 }
 
 func (r *userRepo) Create(ctx context.Context, email, username, passwordHash string) error {
+	query := `
+		INSERT INTO users (email, username, password_hash)
+		VALUES ($1,$2,$3)
+	`
+	_, err := r.db.Exec(ctx, query, email, username, passwordHash)
+	if err != nil {
+		return err
+	}
 	return nil
 }
