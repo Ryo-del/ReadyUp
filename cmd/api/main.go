@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ReadyUp/internal/auth"
 	"ReadyUp/internal/config"
 	"ReadyUp/internal/db"
 	apphttp "ReadyUp/internal/http"
@@ -43,10 +44,14 @@ func main() {
 
 	// repositories
 	userRepo := repository.NewUserRepository(pool)
+	jwtManager, err := auth.NewJWTManager(cfg.JWT.Secret, cfg.JWT.ExpireDuration())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	log.Println("✅ database connected")
 	port := ":" + viper.GetString("server.port")
-	r := apphttp.NewRouter(userRepo)
+	r := apphttp.NewRouter(userRepo, jwtManager)
 
 	slog.Info("🚀 Starting server on " + port)
 	log.Fatal(http.ListenAndServe(port, r))

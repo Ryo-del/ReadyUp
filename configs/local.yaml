@@ -6,3 +6,6 @@ DB:
   username: postgres
   port: 5432
   password: password
+jwt:
+  secret: "super-secret-key"
+  expire_hours: 24

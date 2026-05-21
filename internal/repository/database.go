@@ -9,7 +9,7 @@ import (
 )
 
 type UserRepository interface {
-	Create(ctx context.Context, email, username, passwordHash string) error
+	Create(ctx context.Context, email, username, passwordHash string) (int64, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -44,14 +44,16 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string) (*model.User, e
 	return &user, nil
 }
 
-func (r *userRepo) Create(ctx context.Context, email, username, passwordHash string) error {
+func (r *userRepo) Create(ctx context.Context, email, username, passwordHash string) (int64, error) {
+	var userID int64
 	query := `
 		INSERT INTO users (email, username, password_hash)
 		VALUES ($1,$2,$3)
+		RETURNING id
 	`
-	_, err := r.db.Exec(ctx, query, email, username, passwordHash)
+	err := r.db.QueryRow(ctx, query, email, username, passwordHash).Scan(&userID)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return userID, nil
 }

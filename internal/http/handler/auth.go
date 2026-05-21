@@ -13,17 +13,25 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-type RegiserRequest struct {
+type RegisterRequest struct {
 	UserName string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
-type AuthHandler struct {
-	users repo.UserRepository
+
+type AuthResponse struct {
+	Token     string `json:"token"`
+	TokenType string `json:"token_type"`
+	ExpiresIn int64  `json:"expires_in"`
 }
 
-func NewAuthHandler(users repo.UserRepository) *AuthHandler {
-	return &AuthHandler{users: users}
+type AuthHandler struct {
+	users      repo.UserRepository
+	jwtManager *auth.JWTManager
+}
+
+func NewAuthHandler(users repo.UserRepository, jwtManager *auth.JWTManager) *AuthHandler {
+	return &AuthHandler{users: users, jwtManager: jwtManager}
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -50,11 +58,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write([]byte("login success"))
+	h.writeToken(w, user.ID)
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req RegiserRequest
+	var req RegisterRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		slog.Error("failed to parse login request", "error", err)
@@ -67,11 +75,30 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.users.Create(r.Context(), req.Email, req.UserName, hash)
+	userID, err := h.users.Create(r.Context(), req.Email, req.UserName, hash)
 	if err != nil {
 		slog.Error("failed to create user from database", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	w.Write([]byte("regiser success"))
+	h.writeToken(w, userID)
+}
+
+func (h *AuthHandler) writeToken(w http.ResponseWriter, userID int64) {
+	token, err := h.jwtManager.Generate(userID)
+	if err != nil {
+		slog.Error("failed to generate jwt token", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(AuthResponse{
+		Token:     token,
+		TokenType: "Bearer",
+		ExpiresIn: int64(h.jwtManager.TTL().Seconds()),
+	})
+	if err != nil {
+		slog.Error("failed to encode auth response", "error", err)
+	}
 }
